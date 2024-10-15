@@ -73,3 +73,69 @@ pub fn ezPrint(args: anytype) void {
     fmt = fmt ++ "\n";
     std.debug.print(fmt, args);
 }
+
+/// multidimensional slice.
+/// reinterpret a slice of values as a multidimensional grid with n dimmensions
+pub fn MdSlice(n: comptime_int, T: type) type {
+    return struct {
+        const Self = @This();
+
+        items: [*]T,
+        lenghts: [n]usize,
+
+        /// pos <- .{x, y, z...
+        pub fn get(self: MdSlice(n, T), pos: [n]usize) T {
+            var index: usize = 0;
+            var acc: usize = 1;
+            for (0..n) |i| {
+                std.debug.assert(pos[i] < self.lenghts[i]); // index out of bounds
+                index += pos[i] * acc;
+                acc *= self.lenghts[i];
+            }
+            return self.items[index];
+        }
+
+        /// pos <- .{x, y, z...
+        pub fn set(self: *MdSlice(n, T), pos: [n]usize, item: T) T {
+            var index: usize = 0;
+            var acc: usize = 1;
+            for (0..n) |i| {
+                std.debug.assert(pos[i] < self.lenghts[i]); // index out of bounds
+                index += pos[i] * acc;
+                acc *= self.lenghts[i];
+            }
+            self.items[index] = item;
+        }
+
+        /// buff must be a slice of
+        pub fn init(
+            buff: anytype,
+            range_start: usize,
+            lenghts: [n]usize,
+        ) Self {
+            if (@typeInfo(@TypeOf(buff)) != .Pointer) @compileError("Buff must have a pointer type. Buff is of type " ++ @typeName(@TypeOf(buff)) ++ ".");
+            var acc: usize = 1;
+            for (0..n) |i| {
+                acc *= lenghts[i];
+            }
+            return Self{
+                .items = buff[range_start..acc].ptr,
+                .lenghts = lenghts,
+            };
+        }
+    };
+}
+
+test MdSlice {
+    var buff: [189]i32 = .{69} ** 188 ++ .{88};
+    const dslice: MdSlice(1, i32) = .{
+        .items = &buff,
+        .lenghts = .{8},
+    };
+
+    try std.testing.expectEqual(69, dslice.get(.{0}));
+
+    const dslice2 = MdSlice(3, i32).init(&buff, 0, .{ 3, 7, 9 });
+    try std.testing.expectEqual(69, dslice2.get(.{ 0, 0, 0 }));
+    try std.testing.expectEqual(88, dslice2.get(.{ 2, 6, 8 }));
+}
