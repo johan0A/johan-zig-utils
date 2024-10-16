@@ -139,3 +139,45 @@ test MdSlice {
     try std.testing.expectEqual(69, dslice2.get(.{ 0, 0, 0 }));
     try std.testing.expectEqual(88, dslice2.get(.{ 2, 6, 8 }));
 }
+
+fn levenshteinDistance(T: type, s: []const T, t: []const T, alloc: std.mem.Allocator) !usize {
+    var arena = std.heap.ArenaAllocator.init(alloc);
+    defer arena.deinit();
+    var v0 = try arena.allocator().alloc(usize, t.len + 1);
+    var v1 = try arena.allocator().alloc(usize, t.len + 1);
+
+    for (v0, 0..) |*value, i| {
+        value.* = @intCast(i);
+    }
+
+    for (0..s.len) |i| {
+        v1[0] = @intCast(i + 1);
+        for (0..t.len) |j| {
+            const deletion_cost = v0[j + 1] + 1;
+            const insertion_cost = v1[j] + 1;
+            var substitution_cost: usize = 0;
+            if (s[i] == t[j]) {
+                substitution_cost = v0[j];
+            } else {
+                substitution_cost = v0[j] + 1;
+            }
+
+            v1[j + 1] = @min(deletion_cost, insertion_cost, substitution_cost);
+        }
+        std.mem.swap([]usize, &v0, &v1);
+    }
+
+    return v0[t.len];
+}
+
+test "levenshteinDistance" {
+    const alloc = std.testing.allocator;
+    try std.testing.expectEqual(2, try levenshteinDistance(u8, "book", "back", alloc));
+    try std.testing.expectEqual(7, try levenshteinDistance(u8, "HAAAA!!", "owo", alloc));
+    try std.testing.expectEqual(55, try levenshteinDistance(
+        u8,
+        "In information theory, linguistics, and computer science, the Levenshtein distance is a string metric for measuring the difference between two sequences.",
+        "In train theory, linguistic, and science, the distance Levenshtein is a meter metric for measur the dirence ween wo sequen",
+        alloc,
+    ));
+}
